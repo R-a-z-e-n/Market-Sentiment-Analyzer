@@ -1,0 +1,84 @@
+Detailed Step by step Explanation:
+
+Load Libraries and upload files:
+
+from google.colab import files
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+print("Please upload BOTH files: 'historical_data.csv' and 'fear_greed_index.csv'")
+uploaded_files = files.upload()
+
+Load and Inspect Data:
+
+trader_data = pd.read_csv('historical_data.csv')
+sentiment_data = pd.read_csv('fear_greed_index.csv')
+print("\n Trader Data Sample:")
+print(trader_data.head())
+
+print("\n Sentiment Data Sample:")
+print(sentiment_data.head())
+
+Data cleaning and preparation:
+
+trader_data['Timestamp IST'] = pd.to_datetime(trader_data['Timestamp IST'], errors='coerce')
+sentiment_data['date'] = pd.to_datetime(sentiment_data['date'], errors='coerce')
+trader_data.drop_duplicates(inplace=True)
+sentiment_data.drop_duplicates(inplace=True)
+trader_data['trade_date'] = trader_data['Timestamp IST'].dt.date
+sentiment_data['sentiment_date'] = sentiment_data['date'].dt.date
+
+Merging the datasets:
+
+merged_data = pd.merge(trader_data, sentiment_data, left_on='trade_date', right_on='sentiment_date', how='inner')
+
+Classifying trade direction:
+
+merged_data['trade_side_numeric'] = merged_data['Direction'].map({'Buy': 1, 'Sell': -1})
+
+
+Summarizing the performance by sentiment:
+
+performance_summary = merged_data.groupby('classification').agg({
+    'Closed PnL': ['mean', 'median', 'sum', 'count'],
+    'Fee': 'mean',
+    'Account': pd.Series.nunique
+}).reset_index()
+performance_summary.columns = ['Sentiment', 'Average_PnL', 'Median_PnL', 'Total_PnL', 'Trade_Count', 'Average_Fee', 'Unique_Traders']
+
+
+Visualizations:
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(x='classification', y='Closed PnL', data=merged_data, palette='coolwarm')
+plt.title('Profit & Loss Distribution: Fear vs. Greed')
+plt.grid(True)
+plt.show()
+plt.figure(figsize=(12, 6))
+sns.countplot(x='classification', data=merged_data, palette='Set2')
+plt.title('Number of Trades per Sentiment')
+plt.grid(True)
+plt.show()
+plt.figure(figsize=(12, 6))
+sns.barplot(x='classification', y='Fee', data=merged_data, palette='Blues_d')
+plt.title('Average Fee Paid per Sentiment')
+plt.grid(True)
+plt.show()
+
+Calculating the win rate:
+
+merged_data['is_profitable'] = merged_data['Closed PnL'] > 0
+win_rate = merged_data.groupby('classification')['is_profitable'].mean().reset_index()
+win_rate.rename(columns={'is_profitable': 'Win_Rate'}, inplace=True)
+
+Drawing Conclussions:
+
+print("\n Summary Insights:")
+fear_avg_pnl = performance_summary.loc[performance_summary['Sentiment'] == 'Fear', 'Average_PnL'].values[0]
+greed_avg_pnl = performance_summary.loc[performance_summary['Sentiment'] == 'Greed', 'Average_PnL'].values[0]
+
+if fear_avg_pnl > greed_avg_pnl:
+    print("  Traders perform better on average during periods of FEAR. Seems caution sharpens their instincts!")
+else:
+    print("  Traders thrive more during periods of GREED. The bullish energy seems to drive profits!")
